@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pre Sports Events</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <style>
+        .active-tab { background-color: #f8fafc; border-bottom: 4px solid #2563eb; color: #2563eb; font-weight: bold; }
+        input[type="number"] { width: 85px; text-align: center; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px; }
+        input[type="text"] { border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; transition: all 0.2s; }
+        input[type="text"]:focus { border-color: #2563eb; outline: none; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
+        
+        .piggott { border-left: 5px solid #10b981; } 
+        .jackson { border-left: 5px solid #fbbf24; } 
+        .woodroffe { border-left: 5px solid #ef4444; } 
+        .friday { border-left: 5px solid #3b82f6; } 
+        
+        .piggott-text { color: #059669; }
+        .jackson-text { color: #d97706; }
+        .woodroffe-text { color: #dc2626; }
+        .friday-text { color: #2563eb; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: white; }
+            .print-container { width: 100%; margin: 0; padding: 0; }
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans antialiased text-slate-900">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8 no-print">
+        <header class="mb-8 flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+            <div class="flex items-center gap-4">
+                <div class="bg-blue-600 p-3 rounded-2xl shadow-inner">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="text-white w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-black text-slate-800 tracking-tighter uppercase">Pre-Sports 2024</h1>
+                    <p id="status-bar" class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span> Connecting...
+                    </p>
+                </div>
+            </div>
+            <div class="flex gap-4 mt-4 md:mt-0">
+                <button onclick="resetToDefaults()" class="text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-xl transition text-xs font-black uppercase tracking-wider border border-amber-200">Load Original Data</button>
+                <button onclick="resetData()" class="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl transition text-xs font-black uppercase tracking-wider">Clear All</button>
+                <button onclick="window.print()" class="bg-slate-900 text-white px-8 py-3 rounded-2xl transition shadow-xl font-bold flex items-center gap-2 hover:bg-slate-800 active:scale-95">
+                    Generate Report
+                </button>
+            </div>
+        </header>
+
+        <nav class="flex space-x-1 mb-8 bg-white p-1.5 rounded-3xl shadow-sm border border-slate-200 overflow-x-auto no-scrollbar">
+            <button onclick="switchTab('results')" id="tab-results" class="flex-1 min-w-[120px] px-4 py-4 rounded-2xl text-xs uppercase tracking-widest font-black transition-all">LJ Prelims</button>
+            <button onclick="switchTab('ljfinal')" id="tab-ljfinal" class="flex-1 min-w-[120px] px-4 py-4 rounded-2xl text-xs uppercase tracking-widest font-black text-slate-400 transition-all">LJ Final</button>
+            <button onclick="switchTab('shotput')" id="tab-shotput" class="flex-1 min-w-[120px] px-4 py-4 rounded-2xl text-xs uppercase tracking-widest font-black text-slate-400 transition-all">Shot Put</button>
+            <button onclick="switchTab('middistance')" id="tab-middistance" class="flex-1 min-w-[120px] px-4 py-4 rounded-2xl text-xs uppercase tracking-widest font-black text-slate-400 transition-all">Mid Dist</button>
+            <button onclick="switchTab('relay')" id="tab-relay" class="flex-1 min-w-[120px] px-4 py-4 rounded-2xl text-xs uppercase tracking-widest font-black text-slate-400 transition-all">Relay</button>
+            <button onclick="switchTab('standings')" id="tab-standings" class="flex-1 min-w-[120px] px-4 py-4 rounded-2xl text-xs uppercase tracking-widest font-black text-slate-400 transition-all">Overall</button>
+        </nav>
+
+        <div id="settings-panel" class="mb-8 bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+            <div class="flex flex-col lg:flex-row gap-8 items-end">
+                <div class="w-full lg:w-64">
+                    <label class="block text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Competition Level</label>
+                    <select onchange="switchCategory(this.value)" id="cat-selector" class="w-full p-4 bg-slate-50 rounded-2xl font-black text-slate-700 outline-none border border-slate-200 focus:ring-2 ring-blue-500/10">
+                        <option value="senior">Senior</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="junior">Junior</option>
+                    </select>
+                </div>
+                
+                <div id="standard-inputs" class="flex-1 grid grid-cols-2 md:grid-cols-4 gap-6 w-full">
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black uppercase text-slate-400 tracking-widest">Girls Sch Std</label>
+                        <input type="number" step="0.01" id="std-gSch" onchange="updateStd('gSch', this.value)" class="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 font-bold">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black uppercase text-slate-400 tracking-widest">Girls Nat Std</label>
+                        <input type="number" step="0.01" id="std-gNat" onchange="updateStd('gNat', this.value)" class="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 font-bold">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black uppercase text-slate-400 tracking-widest">Boys Sch Std</label>
+                        <input type="number" step="0.01" id="std-bSch" onchange="updateStd('bSch', this.value)" class="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 font-bold">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black uppercase text-slate-400 tracking-widest">Boys Nat Std</label>
+                        <input type="number" step="0.01" id="std-bNat" onchange="updateStd('bNat', this.value)" class="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 font-bold">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="content-area" class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            <!-- Content Rendered by JS -->
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = JSON.parse(__firebase_config);
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pre-sports-2024-final';
+
+        const RELAY_POINTS = [25, 20, 15, 10];
+        const FINAL_POINTS = [10, 8, 6, 4, 3, 2, 1, 0];
+
+        const DEFAULT_ATHLETES = {
+            senior: {
+                Girls: [
+                    { house: 'Woodroffe', name: 'Nia Baptiste', j1: 3.92, j2: 4.12, j3: 3.50 },
+                    { house: 'Woodroffe', name: 'Tricia lewis', j1: 3.08, j2: 2.62, j3: 2.80 },
+                    { house: 'Woodroffe', name: 'Alyssa Browne', j1: 3.32, j2: 3.21, j3: 2.81 },
+                    { house: 'Woodroffe', name: 'Romariah Jarvis', j1: 3.14, j2: 2.89, j3: 3.27 },
+                    { house: 'Woodroffe', name: 'Xylia Simmons', j1: 0, j2: 3.33, j3: 3.34 },
+                    { house: 'Woodroffe', name: 'Sharena Chance', j1: 0, j2: 0, j3: 0 },
+                    { house: 'Friday', name: 'Shade Meade', j1: 3.93, j2: 3.91, j3: 4.13 },
+                    { house: 'Friday', name: 'Ranae John', j1: 2.89, j2: 3.11, j3: 3.24 },
+                    { house: 'Friday', name: 'Adele Sergeant', j1: 3.53, j2: 3.51, j3: 3.96 },
+                    { house: 'Friday', name: 'lonicia Derrick', j1: 0, j2: 3.43, j3: 0 },
+                    { house: 'Friday', name: 'Nyonnie crooke', j1: 0, j2: 2.23, j3: 0 },
+                    { house: 'Piggott', name: 'shermicia Dowers', j1: 3.55, j2: 3.39, j3: 3.68 },
+                    { house: 'Piggott', name: 'Saria Jack', j1: 0, j2: 2.39, j3: 0 },
+                    { house: 'Piggott', name: 'lenora Fedricks', j1: 3.04, j2: 3.15, j3: 3.31 },
+                    { house: 'Piggott', name: 'Alicia Doyle', j1: 2.13, j2: 2.64, j3: 0 },
+                    { house: 'Piggott', name: "D'Arje King", j1: 3.02, j2: 3.02, j3: 3.00 },
+                    { house: 'Piggott', name: 'yollissa Olive', j1: 0, j2: 0, j3: 0 },
+                    { house: 'Jackson', name: 'Mariah Dasent', j1: 2.96, j2: 0, j3: 3.74 },
+                    { house: 'Jackson', name: 'Calyah Clarke', j1: 3.37, j2: 3.48, j3: 3.40 },
+                    { house: 'Jackson', name: 'Nathalia Caine', j1: 3.11, j2: 2.91, j3: 3.01 },
+                    { house: 'Jackson', name: 'Kenya Alexander', j1: 3.23, j2: 2.90, j3: 3.24 },
+                    { house: 'Jackson', name: 'Faith topping', j1: 2.58, j2: 0, j3: 2.62 },
+                    { house: 'Jackson', name: 'Melena George', j1: 0, j2: 0, j3: 0 }
+                ],
+                Boys: [
+                    { house: 'Woodroffe', name: 'jerod durham', j1: 4.27, j2: 3.67, j3: 4.02 },
+                    { house: 'Woodroffe', name: 'Jaemari sandy', j1: 0, j2: 4.54, j3: 0 },
+                    { house: 'Woodroffe', name: 'akeem Haywood', j1: 0, j2: 3.04, j3: 0 },
+                    { house: 'Woodroffe', name: 'Byron gibson', j1: 4.69, j2: 5.36, j3: 5.43 },
+                    { house: 'Woodroffe', name: 'lee-ronjay chance', j1: 3.71, j2: 3.94, j3: 3.94 },
+                    { house: 'Woodroffe', name: 'azavion dennie', j1: 4.56, j2: 4.6, j3: 4.46 },
+                    { house: 'Friday', name: 'c-j scott', j1: 4.15, j2: 4.62, j3: 0 },
+                    { house: 'Friday', name: 'skye williams', j1: 4.56, j2: 4.69, j3: 4.70 },
+                    { house: 'Friday', name: 'Matthew little', j1: 5.21, j2: 5.50, j3: 5.90 },
+                    { house: 'Friday', name: 'timroy ralph', j1: 5.66, j2: 5.68, j3: 5.56 },
+                    { house: 'Friday', name: 'jaiden wright', j1: 4.54, j2: 4.62, j3: 0 },
+                    { house: 'Piggott', name: 'ethan laidlow', j1: 3.88, j2: 0, j3: 4.05 },
+                    { house: 'Piggott', name: 'daniel little', j1: 4.63, j2: 4.88, j3: 0 },
+                    { house: 'Piggott', name: 'shacodi pile', j1: 4.68, j2: 4.55, j3: 4.63 },
+                    { house: 'Piggott', name: 'oario doyle', j1: 5.06, j2: 5.03, j3: 4.84 },
+                    { house: 'Piggott', name: 'ethan davis', j1: 5.40, j2: 0, j3: 4.47 },
+                    { house: 'Piggott', name: 'Wyatt', j1: 0, j2: 0, j3: 0 },
+                    { house: 'Jackson', name: 'joshua davis', j1: 4.81, j2: 4.41, j3: 4.66 },
+                    { house: 'Jackson', name: 'Jalen richardson', j1: 5.23, j2: 0, j3: 5.16 },
+                    { house: 'Jackson', name: 'josiah richardson', j1: 4.02, j2: 4.36, j3: 4.20 }
+                ]
+            },
+            intermediate: {
+                Girls: [
+                    { house: 'Piggott', name: 'krystal Deshong', j1: 3.79, j2: 3.91, j3: 3.98 },
+                    { house: 'Piggott', name: 'Amesha Daniel', j1: 3.37, j2: 3.68, j3: 3.31 },
+                    { house: 'Piggott', name: 'Flonique Pompey', j1: 0, j2: 0, j3: 3.42 },
+                    { house: 'Piggott', name: 'Cherish Roberts', j1: 3.21, j2: 3.02, j3: 0 },
+                    { house: 'Piggott', name: 'Kara Constance', j1: 3.56, j2: 3.04, j3: 0 },
+                    { house: 'Piggott', name: 'Shaiya Ellis', j1: 2.77, j2: 0, j3: 0 },
+                    { house: 'Jackson', name: 'Kimora Farrel', j1: 0, j2: 0, j3: 3.57 },
+                    { house: 'Jackson', name: 'Aziza Adams', j1: 3.38, j2: 3.22, j3: 0 },
+                    { house: 'Jackson', name: 'Nikyla Foster', j1: 3.34, j2: 3.29, j3: 3.59 },
+                    { house: 'Jackson', name: 'Satavia Wiltshire', j1: 3.55, j2: 3.61, j3: 3.77 },
+                    { house: 'Jackson', name: 'Inola Commissiong', j1: 0, j2: 0, j3: 2.68 },
+                    { house: 'Jackson', name: 'Shenel Glasgow', j1: 0, j2: 3.03, j3: 3.5 },
+                    { house: 'Woodroffe', name: 'Nicholette Walters', j1: 3.68, j2: 3.52, j3: 2.79 },
+                    { house: 'Woodroffe', name: 'Culleen Tucker', j1: 0, j2: 3.54, j3: 3.36 },
+                    { house: 'Woodroffe', name: 'Nataley Lewis', j1: 3.57, j2: 3.8, j3: 3.88 },
+                    { house: 'Woodroffe', name: 'Jaya Smith', j1: 2.92, j2: 2.93, j3: 3.54 },
+                    { house: 'Woodroffe', name: 'Cornelia Barbour', j1: 3.04, j2: 3.51, j3: 3.17 },
+                    { house: 'Woodroffe', name: 'Eve Delpesche', j1: 3.73, j2: 3.84, j3: 0 },
+                    { house: 'Friday', name: 'Destiny D', j1: 3.89, j2: 3.75, j3: 0 },
+                    { house: 'Friday', name: 'Nakeria Richards', j1: 3.61, j2: 3.76, j3: 3.35 },
+                    { house: 'Friday', name: 'Phillisha John', j1: 0, j2: 0, j3: 3.3 },
+                    { house: 'Friday', name: 'Shianna Bascombe', j1: 3.58, j2: 3.53, j3: 0 },
+                    { house: 'Friday', name: 'Nasafia Little', j1: 0, j2: 0, j3: 2.92 },
+                    { house: 'Friday', name: 'Charity Huggins', j1: 3.31, j2: 3.75, j3: 3.92 }
+                ],
+                Boys: [
+                    { house: 'Piggott', name: 'Gevanioh Westfield', j1: 3.99, j2: 4.18, j3: 4.27 },
+                    { house: 'Piggott', name: 'Delondioh duncan', j1: 3.58, j2: 4.3, j3: 3.98 },
+                    { house: 'Piggott', name: 'Khaire Nesbitt', j1: 3.42, j2: 0, j3: 3.83 },
+                    { house: 'Piggott', name: 'Rayshorn Richards', j1: 4.29, j2: 4.11, j3: 4.34 },
+                    { house: 'Piggott', name: 'Lucus Sutherland', j1: 4.03, j2: 3.86, j3: 4.06 },
+                    { house: 'Piggott', name: 'Alex Murphy', j1: 4.6, j2: 5.19, j3: 5.16 },
+                    { house: 'Jackson', name: 'Ashorn Philips', j1: 4.07, j2: 4.35, j3: 0 },
+                    { house: 'Jackson', name: 'Levorn Williams', j1: 4.32, j2: 4.22, j3: 0 },
+                    { house: 'Jackson', name: 'Kai Hector', j1: 3.57, j2: 0, j3: 3.84 },
+                    { house: 'Jackson', name: 'Leondre Little', j1: 3.95, j2: 4.04, j3: 4.1 },
+                    { house: 'Jackson', name: 'Kajor George', j1: 4.18, j2: 4.04, j3: 0 },
+                    { house: 'Jackson', name: 'Rosario Smart', j1: 4.3, j2: 0, j3: 0 },
+                    { house: 'Woodroffe', name: "Rey'l Bryron", j1: 4.3, j2: 0, j3: 4.35 },
+                    { house: 'Woodroffe', name: 'Rayshad samuel', j1: 4.89, j2: 0, j3: 4.68 },
+                    { house: 'Woodroffe', name: 'Adriano Harold', j1: 4.05, j2: 4.15, j3: 3.95 },
+                    { house: 'Woodroffe', name: 'Daylaue Aston', j1: 0.01, j2: 0, j3: 0 },
+                    { house: 'Woodroffe', name: 'Eandre Grant', j1: 5.39, j2: 5.42, j3: 4.78 },
+                    { house: 'Woodroffe', name: 'Kavin Moses', j1: 4.37, j2: 3.96, j3: 4.29 },
+                    { house: 'Friday', name: 'Dwayne Browne', j1: 3.83, j2: 0, j3: 0 },
+                    { house: 'Friday', name: 'Calem Latchman', j1: 3.75, j2: 4.5, j3: 0 },
+                    { house: 'Friday', name: 'Roan Moses', j1: 5.2, j2: 0, j3: 5 },
+                    { house: 'Friday', name: 'Tyler Nelson', j1: 0.01, j2: 0, j3: 0 },
+                    { house: 'Friday', name: 'Jmarie Roberts', j1: 3.56, j2: 3.44, j3: 0 },
+                    { house: 'Friday', name: 'Undre Desliva', j1: 0, j2: 3.91, j3: 0 }
+                ]
+            },
+            junior: {
+                Girls: [
+                    { house: 'Piggott', name: 'Zia Hooper', j1: 2.26, j2: 2.69, j3: 2.6 },
+                    { house: 'Piggott', name: 'Danicia Bobb', j1: 2.61, j2: 2.98, j3: 3.15 },
+                    { house: 'Piggott', name: 'Amiya Moe', j1: 2.88, j2: 3.06, j3: 0 },
+                    { house: 'Piggott', name: 'Suenel Burke', j1: 0, j2: 2.73, j3: 2.85 },
+                    { house: 'Piggott', name: 'Ashiba Debique', j1: 2.19, j2: 2.52, j3: 0 },
+                    { house: 'Piggott', name: 'La-Velle Boyea', j1: 0.01, j2: 0, j3: 0 },
+                    { house: 'Jackson', name: 'Zane Edwards', j1: 3.59, j2: 3.44, j3: 3.75 },
+                    { house: 'Jackson', name: 'Demi Bruce', j1: 0, j2: 3.51, j3: 3.25 },
+                    { house: 'Jackson', name: 'Abigail Richard', j1: 0, j2: 1.68, j3: 0 },
+                    { house: 'Jackson', name: 'Andeva Ricards', j1: 0, j2: 2.07, j3: 2.54 },
+                    { house: 'Jackson', name: 'Zarlea Simmons', j1: 0, j2: 2.54, j3: 2.69 },
+                    { house: 'Jackson', name: 'Alyssa Madas', j1: 3.3, j2: 3.21, j3: 0 },
+                    { house: 'Woodroffe', name: 'Niomi Roberts', j1: 0, j2: 3.76, j3: 3.7 },
+                    { house: 'Woodroffe', name: 'Arianna Jack', j1: 2.65, j2: 3.14, j3: 3.0 },
+                    { house: 'Woodroffe', name: 'Alyssa Jack', j1: 2.24, j2: 0, j3: 2.64 },
+                    { house: 'Woodroffe', name: 'Daylayne Keil', j1: 3.15, j2: 3.35, j3: 3.5 },
+                    { house: 'Woodroffe', name: 'Jade', j1: 3.54, j2: 3.56, j3: 3.5 },
+                    { house: 'Woodroffe', name: 'Maria dells', j1: 3.6, j2: 3.46, j3: 3.82 },
+                    { house: 'Friday', name: 'Deshane Horne', j1: 2.09, j2: 2.62, j3: 2.54 },
+                    { house: 'Friday', name: 'Addecia Nero', j1: 2.65, j2: 2.44, j3: 2.7 },
+                    { house: 'Friday', name: 'Nyla Smith', j1: 0, j2: 2.78, j3: 2.79 },
+                    { house: 'Friday', name: 'Janet Matthews', j1: 0, j2: 2.54, j3: 2.81 },
+                    { house: 'Friday', name: 'Desronique', j1: 2.54, j2: 2.43, j3: 2.6 },
+                    { house: 'Friday', name: 'Alique Browne', j1: 0, j2: 1.94, j3: 2.44 }
+                ],
+                Boys: [
+                    { house: 'Piggott', name: 'Kemar lewis', j1: 3.01, j2: 0, j3: 0 },
+                    { house: 'Piggott', name: 'Osei Ragguette', j1: 3.4, j2: 3.95, j3: 3.62 },
+                    { house: 'Piggott', name: 'Shaz Star', j1: 3.3, j2: 3.39, j3: 3.55 },
+                    { house: 'Piggott', name: 'Treyshorn Gibson', j1: 3.54, j2: 3.57, j3: 3.78 },
+                    { house: 'Piggott', name: 'William Williams', j1: 3.3, j2: 3.58, j3: 0 },
+                    { house: 'Piggott', name: 'Nickron Thomas', j1: 3.65, j2: 3.67, j3: 3.85 },
+                    { house: 'Jackson', name: 'Jonathan Timm', j1: 4.45, j2: 4.34, j3: 4.51 },
+                    { house: 'Jackson', name: 'Kishorne Baptiste', j1: 4.43, j2: 4.5, j3: 4.15 },
+                    { house: 'Jackson', name: 'shaquan willson', j1: 3.25, j2: 0, j3: 3.85 },
+                    { house: 'Jackson', name: 'Ethan Gill', j1: 3.54, j2: 0, j3: 3.6 },
+                    { house: 'Jackson', name: 'Anthoney Morgan', j1: 3.3, j2: 3.32, j3: 0 },
+                    { house: 'Jackson', name: 'Jaden simmons', j1: 3.58, j2: 3.4, j3: 2.8 },
+                    { house: 'Woodroffe', name: 'Diron Joseph', j1: 3.05, j2: 2.79, j3: 2.94 },
+                    { house: 'Woodroffe', name: 'Leubron Nero', j1: 3.67, j2: 3.6, j3: 0 },
+                    { house: 'Woodroffe', name: 'Davon Joseph', j1: 2.51, j2: 2.65, j3: 0 },
+                    { house: 'Woodroffe', name: 'Julius', j1: 3.23, j2: 0, j3: 3.1 },
+                    { house: 'Woodroffe', name: 'Caden Charles', j1: 3.0, j2: 0, j3: 3.06 },
+                    { house: 'Woodroffe', name: 'Kelm Philips', j1: 0, j2: 3.87, j3: 4.07 },
+                    { house: 'Friday', name: 'David Cyffy', j1: 3.68, j2: 3.79, j3: 3.77 },
+                    { house: 'Friday', name: 'Dillion Moses', j1: 3.25, j2: 3.29, j3: 0 },
+                    { house: 'Friday', name: 'Mirae Martin', j1: 3.42, j2: 3.56, j3: 3.29 },
+                    { house: 'Friday', name: 'Jorden Morgan', j1: 0.01, j2: 0, j3: 0 },
+                    { house: 'Friday', name: 'Jayden Morgan', j1: 3.4, j2: 0, j3: 3.0 },
+                    { house: 'Friday', name: 'Shane Williams', j1: 3.45, j2: 3.58, j3: 3.44 }
+                ]
+            }
+        };
+
+        let state = {
+            currentTab: 'results',
+            currentCategory: 'senior',
+            roadRelay: [
+                { house: 'Woodroffe', girlsPos: 1, boysPos: 1 },
+                { house: 'Friday', girlsPos: 2, boysPos: 2 },
+                { house: 'Piggott', girlsPos: 3, boysPos: 3 },
+                { house: 'Jackson', girlsPos: 4, boysPos: 4 }
+            ],
+            categories: {
+                senior: { ljStds: { gSch: 3.6, gNat: 4.6, bSch: 4.85, bNat: 5.85 }, spStds: { gSch: 6.5, gNat: 8.5, bSch: 8.5, bNat: 11.5 } },
+                intermediate: { ljStds: { gSch: 3.5, gNat: 4.5, bSch: 4.5, bNat: 5.5 }, spStds: { gSch: 6.0, gNat: 8.0, bSch: 8.0, bNat: 11.0 } },
+                junior: { ljStds: { gSch: 3.25, gNat: 4.0, bSch: 4.0, bNat: 4.85 }, spStds: { gSch: 5.5, gNat: 7.5, bSch: 7.5, bNat: 10.5 } }
+            }
+        };
+
+        function getTop8FromPrelims(cat, gender) {
+            const athletes = DEFAULT_ATHLETES[cat]?.[gender] || [];
+            return [...athletes]
+                .map(a => ({ ...a, prelimBest: Math.max(a.j1, a.j2, a.j3) }))
+                .sort((a, b) => b.prelimBest - a.prelimBest)
+                .slice(0, 8);
+        }
+
+        ['senior', 'intermediate', 'junior'].forEach(cat => {
+            state.categories[cat].lj = { 
+                Girls: (DEFAULT_ATHLETES[cat]?.Girls || []).map(a => ({...a})), 
+                Boys: (DEFAULT_ATHLETES[cat]?.Boys || []).map(a => ({...a})) 
+            };
+            
+            const topGirls = getTop8FromPrelims(cat, 'Girls');
+            const topBoys = getTop8FromPrelims(cat, 'Boys');
+
+            state.categories[cat].ljfinal = { 
+                Girls: topGirls.reverse().map((a, i) => ({ 
+                    house: a.house || 'Woodroffe', 
+                    name: a.name || '', 
+                    prelimBest: a.prelimBest || 0,
+                    j1: 0, j2: 0, j3: 0
+                })), 
+                Boys: topBoys.reverse().map((a, i) => ({ 
+                    house: a.house || 'Woodroffe', 
+                    name: a.name || '', 
+                    prelimBest: a.prelimBest || 0,
+                    j1: 0, j2: 0, j3: 0
+                })) 
+            };
+            
+            state.categories[cat].shotput = { 
+                Girls: Array(12).fill().map(() => ({ house: 'Woodroffe', name: '', j1: 0, j2: 0, j3: 0 })), 
+                Boys: Array(12).fill().map(() => ({ house: 'Woodroffe', name: '', j1: 0, j2: 0, j3: 0 })) 
+            };
+            state.categories[cat].middistance = { 
+                Girls: Array(12).fill().map(() => ({ house: 'Woodroffe', name: '', pos: 0, time: '' })), 
+                Boys: Array(12).fill().map(() => ({ house: 'Woodroffe', name: '', pos: 0, time: '' })) 
+            };
+        });
+
+        const INITIAL_BLANK_STATE = JSON.parse(JSON.stringify(state));
+
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await auth.signInWithCustomToken(__initial_auth_token);
+            } else {
+                await auth.signInAnonymously();
+            }
+            
+            db.collection('artifacts').doc(appId).collection('public').doc('data').onSnapshot(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    state.categories = data.categories || state.categories;
+                    state.roadRelay = data.roadRelay || state.roadRelay;
+                    updateUIInputs();
+                    render();
+                }
+                updateStatusBar(true);
+            }, () => updateStatusBar(false));
+        };
+
+        function updateStatusBar(online) {
+            const bar = document.getElementById('status-bar');
+            bar.innerHTML = online 
+                ? `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Synchronized`
+                : `<span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span> Connecting...`;
+        }
+
+        const saveCloud = async () => {
+            if (!auth.currentUser) return;
+            await db.collection('artifacts').doc(appId).collection('public').doc('data').set({
+                categories: state.categories,
+                roadRelay: state.roadRelay,
+                updatedAt: Date.now()
+            });
+        };
+
+        window.switchTab = (tab) => {
+            state.currentTab = tab;
+            document.querySelectorAll('nav button').forEach(b => {
+                b.classList.remove('active-tab');
+                b.classList.add('text-slate-400');
+            });
+            const active = document.getElementById(`tab-${tab}`);
+            active.classList.add('active-tab');
+            active.classList.remove('text-slate-400');
+            
+            document.getElementById('settings-panel').style.display = (tab === 'standings' || tab === 'relay') ? 'none' : 'block';
+            updateUIInputs();
+            render();
+        };
+
+        window.switchCategory = (cat) => {
+            state.currentCategory = cat;
+            updateUIInputs();
+            render();
+        };
+
+        function updateUIInputs() {
+            const cat = state.categories[state.currentCategory];
+            const stds = (state.currentTab === 'shotput') ? cat.spStds : cat.ljStds;
+            if(document.getElementById('std-gSch')) {
+                document.getElementById('std-gSch').value = stds.gSch;
+                document.getElementById('std-gNat').value = stds.gNat;
+                document.getElementById('std-bSch').value = stds.bSch;
+                document.getElementById('std-bNat').value = stds.bNat;
+            }
+            document.getElementById('cat-selector').value = state.currentCategory;
+        }
+
+        window.updateStd = (key, val) => {
+            const cat = state.categories[state.currentCategory];
+            const target = (state.currentTab === 'shotput') ? cat.spStds : cat.ljStds;
+            target[key] = parseFloat(val) || 0;
+            saveCloud();
+        };
+
+        window.updateFieldData = (eventKey, gender, index, field, value) => {
+            const v = (field === 'name' || field === 'house') ? value : parseFloat(value) || 0;
+            state.categories[state.currentCategory][eventKey][gender][index][field] = v;
+            saveCloud();
+        };
+
+        window.updateMDData = (gender, index, field, value) => {
+            const v = (field === 'pos') ? parseInt(value) || 0 : value;
+            state.categories[state.currentCategory].middistance[gender][index][field] = v;
+            saveCloud();
+        };
+
+        window.updateRelayData = (index, field, value) => {
+            state.roadRelay[index][field] = parseInt(value) || 0;
+            saveCloud();
+        };
+
+        window.resetData = () => {
+            if(confirm("DANGER: This will wipe all scores. Continue?")) {
+                state = JSON.parse(JSON.stringify(INITIAL_BLANK_STATE));
+                saveCloud();
+            }
+        };
+
+        window.resetToDefaults = () => {
+            if(confirm("Load original athlete names and prelim marks? Current edits will be lost.")) {
+                state = JSON.parse(JSON.stringify(INITIAL_BLANK_STATE));
+                saveCloud();
+            }
+        }
+
+        function calculateFieldPoints(catKey, gender, athlete, eventType) {
+            const cat = state.categories[catKey];
+            const jumps = [athlete.j1, athlete.j2, athlete.j3, athlete.j4, athlete.j5, athlete.j6].filter(j => j !== undefined);
+            const best = Math.max(...jumps, 0);
+            
+            if (eventType === 'ljfinal') return { best, pts: 0 };
+
+            const stds = (eventType === 'shotput') ? cat.spStds : cat.ljStds;
+            const sch = gender === 'Girls' ? stds.gSch : stds.bSch;
+            const nat = gender === 'Girls' ? stds.gNat : stds.bNat;
+
+            let pts = 0;
+            if (athlete.name && athlete.name.trim().length > 0) pts += 1;
+            if (best >= sch && best > 0) pts += 2;
+            if (best >= nat && best > 0) pts += 3;
+            
+            return { best, pts };
+        }
+
+        function getMDPoints(pos) {
+            if (pos === 1) return 10;
+            if (pos === 2) return 8;
+            if (pos === 3) return 6;
+            if (pos === 4) return 4;
+            if (pos === 5) return 2;
+            if (pos > 5) return 1;
+            return 0;
+        }
+
+        function renderGenericFieldEvent(eventKey) {
+            let html = '';
+            const isFinal = eventKey === 'ljfinal';
+            const jumpCount = 3; 
+
+            ['Girls', 'Boys'].forEach(gender => {
+                const athletes = state.categories[state.currentCategory][eventKey][gender];
+                
+                const ranked = [...athletes]
+                    .map((a, i) => ({ best: Math.max(a.j1||0, a.j2||0, a.j3||0), index: i }))
+                    .sort((a, b) => b.best - a.best);
+
+                html += `
+                <div class="p-8 border-b border-slate-100 last:border-0">
+                    <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
+                        <span class="w-1.5 h-8 bg-blue-600 rounded-full"></span>
+                        ${gender} ${eventKey === 'shotput' ? 'Shot Put' : 'Long Jump'} ${isFinal ? '(Finals)' : '(Prelims)'}
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-slate-400 uppercase text-[10px] font-black tracking-[0.2em]">
+                                    <th class="pb-4 px-2">Athlete</th>
+                                    <th class="pb-4 px-2">House</th>
+                                    ${isFinal ? '<th class="pb-4 px-2 text-center text-slate-400">Prelim Best</th>' : ''}
+                                    ${Array.from({length: jumpCount}).map((_, i) => `<th class="pb-4 px-2 text-center">R${i+1}</th>`).join('')}
+                                    <th class="pb-4 px-2 text-center text-blue-600">Best</th>
+                                    ${isFinal ? '<th class="pb-4 px-2 text-center text-amber-600">Final Pos</th>' : ''}
+                                    ${!isFinal ? '<th class="pb-4 px-2 text-center text-emerald-600">Pts</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">`;
+
+                athletes.forEach((a, idx) => {
+                    const { best, pts } = calculateFieldPoints(state.currentCategory, gender, a, eventKey);
+                    const houseId = a.house.toLowerCase();
+                    const currentRank = ranked.findIndex(r => r.index === idx) + 1;
+                    const displayRank = best > 0 ? currentRank : '-';
+
+                    html += `
+                    <tr class="${houseId} hover:bg-slate-50 transition-colors">
+                        <td class="py-3 px-2">
+                            <input type="text" value="${a.name}" onchange="updateFieldData('${eventKey}', '${gender}', ${idx}, 'name', this.value)" 
+                                   placeholder="Name" class="w-full font-bold bg-transparent">
+                        </td>
+                        <td class="py-3 px-2">
+                            <select onchange="updateFieldData('${eventKey}', '${gender}', ${idx}, 'house', this.value)" 
+                                    class="bg-transparent font-black uppercase text-[10px] ${houseId}-text outline-none">
+                                <option value="Woodroffe" ${a.house === 'Woodroffe' ? 'selected' : ''}>Woodroffe</option>
+                                <option value="Friday" ${a.house === 'Friday' ? 'selected' : ''}>Friday</option>
+                                <option value="Piggott" ${a.house === 'Piggott' ? 'selected' : ''}>Piggott</option>
+                                <option value="Jackson" ${a.house === 'Jackson' ? 'selected' : ''}>Jackson</option>
+                            </select>
+                        </td>
+                        ${isFinal ? `<td class="py-3 px-2 text-center font-bold text-slate-400 italic">${(a.prelimBest || 0).toFixed(2)}</td>` : ''}
+                        ${Array.from({length: jumpCount}).map((_, i) => `
+                            <td class="py-3 px-2 text-center">
+                                <input type="number" step="0.01" value="${a['j'+(i+1)]}" 
+                                       onchange="updateFieldData('${eventKey}', '${gender}', ${idx}, 'j${i+1}', this.value)" 
+                                       class="focus:ring-2 ring-blue-500/20">
+                            </td>
+                        `).join('')}
+                        <td class="py-3 px-2 text-center font-black text-blue-600">${best.toFixed(2)}</td>
+                        ${isFinal ? `<td class="py-3 px-2 text-center font-black text-amber-600">${displayRank}</td>` : ''}
+                        ${!isFinal ? `<td class="py-3 px-2 text-center font-black text-emerald-600">${pts}</td>` : ''}
+                    </tr>`;
+                });
+                html += `</tbody></table></div></div>`;
+            });
+            document.getElementById('content-area').innerHTML = html;
+        }
+
+        function renderMiddleDistance() {
+            let html = '';
+            ['Girls', 'Boys'].forEach(gender => {
+                html += `
+                <div class="p-8 border-b border-slate-100 last:border-0">
+                    <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
+                        <span class="w-1.5 h-8 bg-blue-600 rounded-full"></span>
+                        ${gender} Middle Distance
+                    </h2>
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-slate-400 uppercase text-[10px] font-black tracking-widest">
+                                <th class="pb-4">Rank</th>
+                                <th class="pb-4">Name</th>
+                                <th class="pb-4">House</th>
+                                <th class="pb-4">Time</th>
+                                <th class="pb-4 text-center">Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                state.categories[state.currentCategory].middistance[gender].forEach((a, idx) => {
+                    const houseId = a.house.toLowerCase();
+                    html += `
+                    <tr class="${houseId} border-b border-slate-50 last:border-0">
+                        <td class="py-3"><input type="number" value="${a.pos}" onchange="updateMDData('${gender}', ${idx}, 'pos', this.value)" class="w-16"></td>
+                        <td class="py-3"><input type="text" value="${a.name}" onchange="updateMDData('${gender}', ${idx}, 'name', this.value)" class="w-full font-bold"></td>
+                        <td class="py-3">
+                            <select onchange="updateMDData('${gender}', ${idx}, 'house', this.value)" class="bg-transparent font-black uppercase text-[10px] ${houseId}-text">
+                                <option value="Woodroffe" ${a.house === 'Woodroffe' ? 'selected' : ''}>Woodroffe</option>
+                                <option value="Friday" ${a.house === 'Friday' ? 'selected' : ''}>Friday</option>
+                                <option value="Piggott" ${a.house === 'Piggott' ? 'selected' : ''}>Piggott</option>
+                                <option value="Jackson" ${a.house === 'Jackson' ? 'selected' : ''}>Jackson</option>
+                            </select>
+                        </td>
+                        <td class="py-3"><input type="text" value="${a.time}" onchange="updateMDData('${gender}', ${idx}, 'time', this.value)" placeholder="MM:SS" class="w-24"></td>
+                        <td class="py-3 text-center font-black">${getMDPoints(a.pos)}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table></div>`;
+            });
+            document.getElementById('content-area').innerHTML = html;
+        }
+
+        function renderRelay() {
+            let html = `
+            <div class="p-8">
+                <h2 class="text-2xl font-black text-slate-800 mb-8 tracking-tighter uppercase">Road Relay Finals</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-slate-400 uppercase text-[10px] font-black tracking-widest">
+                                <th class="pb-4">House</th>
+                                <th class="pb-4 text-center">Girls Pos</th>
+                                <th class="pb-4 text-center">Boys Pos</th>
+                                <th class="pb-4 text-center text-blue-600">Total Points</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">`;
+            state.roadRelay.forEach((r, idx) => {
+                const houseId = r.house.toLowerCase();
+                const gPts = r.girlsPos > 0 ? RELAY_POINTS[r.girlsPos - 1] || 0 : 0;
+                const bPts = r.boysPos > 0 ? RELAY_POINTS[r.boysPos - 1] || 0 : 0;
+                html += `
+                <tr class="${houseId}">
+                    <td class="py-6 font-black text-lg">${r.house}</td>
+                    <td class="py-6 text-center"><input type="number" value="${r.girlsPos}" onchange="updateRelayData(${idx}, 'girlsPos', this.value)" class="p-3 text-lg"></td>
+                    <td class="py-6 text-center"><input type="number" value="${r.boysPos}" onchange="updateRelayData(${idx}, 'boysPos', this.value)" class="p-3 text-lg"></td>
+                    <td class="py-6 text-center font-black text-2xl text-blue-600">${gPts + bPts}</td>
+                </tr>`;
+            });
+            html += `</tbody></table></div></div>`;
+            document.getElementById('content-area').innerHTML = html;
+        }
+
+        function renderStandings() {
+            const houses = ['Woodroffe', 'Friday', 'Piggott', 'Jackson'];
+            const divisions = ['junior', 'intermediate', 'senior'];
+            const genders = ['Girls', 'Boys'];
+
+            const results = houses.map(h => {
+                const breakdown = {
+                    lj: { total: 0, junior: { Girls: 0, Boys: 0 }, intermediate: { Girls: 0, Boys: 0 }, senior: { Girls: 0, Boys: 0 } },
+                    sp: { total: 0, junior: { Girls: 0, Boys: 0 }, intermediate: { Girls: 0, Boys: 0 }, senior: { Girls: 0, Boys: 0 } },
+                    md: { total: 0, junior: { Girls: 0, Boys: 0 }, intermediate: { Girls: 0, Boys: 0 }, senior: { Girls: 0, Boys: 0 } },
+                    relayTotal: 0
+                };
+
+                divisions.forEach(catKey => {
+                    const cat = state.categories[catKey];
+                    genders.forEach(gender => {
+                        // LJ Prelims
+                        cat.lj[gender].forEach(a => {
+                            if (a.house === h) {
+                                const p = calculateFieldPoints(catKey, gender, a, 'lj').pts;
+                                breakdown.lj[catKey][gender] += p;
+                                breakdown.lj.total += p;
+                            }
+                        });
+                        // LJ Finals
+                        const sortedFinals = [...cat.ljfinal[gender]]
+                            .map(a => ({...a, best: Math.max(a.j1||0, a.j2||0, a.j3||0)}))
+                            .sort((a, b) => b.best - a.best);
+                        sortedFinals.forEach((a, rank) => {
+                            if (a.house === h && a.best > 0) {
+                                const p = FINAL_POINTS[rank] || 0;
+                                breakdown.lj[catKey][gender] += p;
+                                breakdown.lj.total += p;
+                            }
+                        });
+                        // Shot Put
+                        cat.shotput[gender].forEach(a => {
+                            if (a.house === h) {
+                                const p = calculateFieldPoints(catKey, gender, a, 'shotput').pts;
+                                breakdown.sp[catKey][gender] += p;
+                                breakdown.sp.total += p;
+                            }
+                        });
+                        // Mid Distance
+                        cat.middistance[gender].forEach(a => {
+                            if (a.house === h) {
+                                const p = getMDPoints(a.pos);
+                                breakdown.md[catKey][gender] += p;
+                                breakdown.md.total += p;
+                            }
+                        });
+                    });
+                });
+
+                const relay = state.roadRelay.find(r => r.house === h);
+                breakdown.relayTotal = (relay.girlsPos > 0 ? RELAY_POINTS[relay.girlsPos - 1] || 0 : 0) + (relay.boysPos > 0 ? RELAY_POINTS[relay.boysPos - 1] || 0 : 0);
+
+                return {
+                    name: h,
+                    breakdown,
+                    total: breakdown.lj.total + breakdown.sp.total + breakdown.md.total + breakdown.relayTotal
+                };
+            }).sort((a, b) => b.total - a.total);
+
+            let html = `<div class="p-8">
+                <h2 class="text-3xl font-black text-slate-800 mb-8 tracking-tighter uppercase">Final Standings & Breakdown</h2>
+                <div class="grid grid-cols-1 gap-12">`;
+
+            results.forEach((r, rank) => {
+                const hId = r.name.toLowerCase();
+                html += `
+                <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col lg:flex-row">
+                    <!-- Left: Summary -->
+                    <div class="p-10 lg:w-80 ${hId} bg-opacity-5 flex flex-col justify-center border-b lg:border-b-0 lg:border-r border-slate-100">
+                        <div class="mb-4">
+                            <span class="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500">Rank #${rank + 1}</span>
+                        </div>
+                        <h3 class="text-3xl font-black text-slate-800 uppercase mb-2">${r.name}</h3>
+                        <div class="text-7xl font-black ${hId}-text tracking-tighter">${r.total}</div>
+                        <div class="mt-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Points Earned</div>
+                    </div>
+
+                    <!-- Right: Grid Breakdown -->
+                    <div class="flex-1 p-8 bg-slate-50/50">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            ${['lj', 'sp', 'md'].map(key => `
+                                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                                    <h4 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-6 flex justify-between items-center">
+                                        ${key === 'lj' ? 'Long Jump' : key === 'sp' ? 'Shot Put' : 'Mid Distance'}
+                                        <span class="text-slate-800 bg-slate-100 px-2 py-1 rounded-lg">${r.breakdown[key].total}</span>
+                                    </h4>
+                                    <div class="space-y-4">
+                                        ${divisions.map(div => `
+                                            <div class="space-y-2">
+                                                <div class="text-[10px] font-black text-slate-300 uppercase">${div}</div>
+                                                <div class="flex gap-2">
+                                                    <div class="flex-1 bg-slate-50 p-2 rounded-xl flex justify-between items-center">
+                                                        <span class="text-[9px] font-bold text-pink-400 uppercase">G</span>
+                                                        <span class="text-xs font-black text-slate-600">${r.breakdown[key][div].Girls}</span>
+                                                    </div>
+                                                    <div class="flex-1 bg-slate-50 p-2 rounded-xl flex justify-between items-center">
+                                                        <span class="text-[9px] font-bold text-blue-400 uppercase">B</span>
+                                                        <span class="text-xs font-black text-slate-600">${r.breakdown[key][div].Boys}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <!-- Relay Section -->
+                        <div class="mt-6 bg-blue-600 p-6 rounded-3xl flex flex-col md:flex-row justify-between items-center text-white">
+                            <div class="font-black uppercase tracking-widest text-xs opacity-80 mb-2 md:mb-0">Road Relay Bonus</div>
+                            <div class="text-2xl font-black">+ ${r.breakdown.relayTotal} Points</div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            html += `</div></div>`;
+            document.getElementById('content-area').innerHTML = html;
+        }
+
+        function render() {
+            if (state.currentTab === 'results') renderGenericFieldEvent('lj');
+            else if (state.currentTab === 'ljfinal') renderGenericFieldEvent('ljfinal');
+            else if (state.currentTab === 'shotput') renderGenericFieldEvent('shotput');
+            else if (state.currentTab === 'middistance') renderMiddleDistance();
+            else if (state.currentTab === 'relay') renderRelay();
+            else if (state.currentTab === 'standings') renderStandings();
+        }
+
+        window.onload = () => { initAuth(); render(); };
+    </script>
+</body>
+</html>
